@@ -1,0 +1,55 @@
+package com.anav.security.config;
+
+import com.anav.security.services.JwtService;
+import jakarta.servlet.FilterChain;
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.lang.NonNull;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.security.web.authentication.WebAuthenticationDetails;
+import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
+import org.springframework.stereotype.Component;
+import org.springframework.web.filter.OncePerRequestFilter;
+
+import java.io.IOException;
+@Component
+@RequiredArgsConstructor//it will create a constructor using any final field we declare within public class
+public class JwtAuthenticationFilter extends OncePerRequestFilter
+{
+    private final JwtService jwtService;
+    private final UserDetailsService userDetailsService;
+
+    @Override
+    protected void doFilterInternal(@NonNull HttpServletRequest request,@NonNull HttpServletResponse response,@NonNull FilterChain filterChain) throws ServletException, IOException {
+    final String authHeader = request.getHeader("Authorization");
+    final String jwt;
+    final String userEmail;
+    if (authHeader== null || authHeader.startsWith("Bearer "))
+    {
+        filterChain.doFilter(request,response);
+        return;
+    }
+    jwt = authHeader.substring(7);
+    userEmail=jwtService.extractUsername(jwt); //todo extract the user email, I need to extract the user email from the token I need a class to manipulate this jwt token
+    if(userEmail!=null && SecurityContextHolder.getContext().getAuthentication()==null)//can I extract my user email and if the user is  authenticated
+    {
+        UserDetails userDetails= this.userDetailsService.loadUserByUsername(userEmail);
+
+        if(jwtService.isTokenValid(jwt,userDetails))//if the User or token is valid or not
+        {
+            UsernamePasswordAuthenticationToken authToken =new UsernamePasswordAuthenticationToken(userDetails,null,userDetails.getAuthorities());
+            authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
+            SecurityContextHolder.getContext().setAuthentication(authToken);
+        }
+
+    }
+    filterChain.doFilter(request, response);
+    }
+
+}
